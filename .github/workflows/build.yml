@@ -23,7 +23,7 @@ jobs:
           name: source
           path: artifacts/
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         target: ["appimage", "fresh"]
@@ -47,6 +47,38 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.target }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-
+      - name: Install Clang PPA 
+        uses: myci-actions/add-deb-repo@11
+        with:
+          repo: deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main
+          repo-name: llvm
+          keys-asc: https://apt.llvm.org/llvm-snapshot.gpg.key
+      - name: Get latest CMake and Ninja
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: latest
+          ninjaVersion: latest 
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.1.1
+        with:
+         version: latest
+         cache: true
+      - name: Install New Packages
+        uses: gerlero/apt-install@v1
+        with:
+          packages: ccache clang-18 clang-tools-18 clang-18-doc libclang-common-18-dev libclang-18-dev libclang1-18 clang-format-18 python3-clang-18 clangd-18 clang-tidy-18 clang-format-18 libasound-dev xorg-dev libx11-dev libxext-dev jackd libpipewire-0.3-dev libsndio-dev libxcb-cursor-dev libasound2-dev libpulse-dev libaudio-dev libjack-dev libsndio-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libwayland-dev libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev fcitx-libs-dev
+      - name: Update System Packages
+        run: sudo apt-get update && sudo apt-get -y dist-upgrade && sudo apt-get clean
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          aqtversion: '==3.1.*'
+          version: '6.7.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'linux_gcc_64'
+          modules: 'qtmultimedia qtwaylandcompositor'
+          cache: 'true'
       - name: Build
         run: ./.ci/linux.sh
       - name: Pack
@@ -80,8 +112,12 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.target }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-
+      - name: Setup XCode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
       - name: Install tools
-        run: brew install ccache ninja
+        run: brew install ccache ninja spirv-tools
       - name: Build
         run: ./.ci/macos.sh
       - name: Prepare outputs for caching
@@ -153,6 +189,13 @@ jobs:
       - name: Install extra tools (MSVC)
         run: choco install ccache ninja wget
         if: ${{ matrix.target == 'msvc' }}
+      - name: Set up Vulkan SDK (MSVC)
+        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        if: ${{ matrix.target == 'msvc' }}
+        with:
+          vulkan-query-version: latest
+          vulkan-components: SPIRV-Tools
+          vulkan-use-cache: true
       - name: Set up MSYS2
         uses: msys2/setup-msys2@v2
         if: ${{ matrix.target == 'msys2' }}
@@ -161,7 +204,7 @@ jobs:
           update: true
           install: git make p7zip
           pacboy: >-
-            toolchain:p ccache:p cmake:p ninja:p
+            toolchain:p ccache:p cmake:p ninja:p spirv-tools:p
             qt6-base:p qt6-multimedia:p qt6-multimedia-wmf:p qt6-tools:p qt6-translations:p
       - name: Disable line ending translation
         run: git config --global core.autocrlf input
@@ -263,7 +306,7 @@ jobs:
           draft: false
           prerelease: false
       - name: Upload artifacts
-        uses: alexellis/upload-assets@0.4.0
+        uses: alexellis/upload-assets@0.4.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
