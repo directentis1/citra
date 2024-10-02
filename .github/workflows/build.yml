@@ -48,7 +48,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.target }}-
       - name: Install essential packages
-        run: apt-get install sudo
+        run: sudo apt-get install sudo
       - name: Install Clang PPA 
         uses: myci-actions/add-deb-repo@11
         with:
